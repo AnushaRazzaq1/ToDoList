@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, message, List, Input, Modal } from 'antd';
+import { Button, message, Input, Modal, Table } from 'antd';
 
 const TodoList = () => {
   const [todos, setTodos] = useState([]);
@@ -12,6 +12,32 @@ const TodoList = () => {
   const [editedTodoDescription, setEditedTodoDescription] = useState('');
   const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
   const [todoToDelete, setTodoToDelete] = useState(null);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 5 });
+  const [sorting, setSorting] = useState({ field: 'title', order: 'descend' });
+
+  const columns = [
+    {
+      title: 'Title',
+      dataIndex: 'title',
+      key: 'title',
+      sorter: true,
+    },
+    {
+      title: 'Description',
+      dataIndex: 'description',
+      key: 'description',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (text, record) => (
+        <span>
+          <Button onClick={() => handleEdit(record)}>Edit</Button>
+          <Button onClick={() => handleDelete(record)}>Delete</Button>
+        </span>
+      ),
+    },
+  ];
 
   const fetchTodos = async () => {
     try {
@@ -21,17 +47,16 @@ const TodoList = () => {
         throw new Error(`Failed to fetch todos. Status: ${response.status}, ${response.statusText}`);
       }
       const responseJSON = await response.json();
-      console.log('Fetched data:', responseJSON); // Log the fetched data
-      setTodos(responseJSON.data || []); // Set todos to an empty array if responseJSON.data is undefined
-    } catch (error) { 
+      console.log('Fetched data:', responseJSON);
+      setTodos(responseJSON.data || []);
+    } catch (error) {
       console.error('Error fetching todos:', error);
       message.error('Failed to fetch todos');
-      setTodos([]); // Set todos to an empty array in case of error
+      setTodos([]);
     } finally {
       setIsLoading(false);
     }
   };
-  
 
   const addTodo = async () => {
     try {
@@ -50,13 +75,13 @@ const TodoList = () => {
         throw new Error(`Failed to add todo. Status: ${response.status}, ${response.statusText}`);
       }
       const responseJSON = await response.json();
-      console.log('Added todo:', responseJSON); // Log the added todo
-      setTodos([...todos, responseJSON?.data]); // Append the new todo to the existing todos list
+      console.log('Added todo:', responseJSON);
+      setTodos([...todos, responseJSON?.data]);
       message.success('Todo added successfully');
-      // Clear input fields after adding todo
+
       setNewTodoTitle('');
       setNewTodoDescription('');
-      setIsModalVisible(false); // Close the modal after adding todo
+      setIsModalVisible(false);
     } catch (error) {
       console.error('Error adding todo:', error);
       message.error('Failed to add todo');
@@ -65,14 +90,11 @@ const TodoList = () => {
     }
   };
 
-  useEffect(()=>{    //it will log the todos to console whenever it gets changed.
-    console.log(todos,"todos")
-  },[todos])
   const updateTodo = async () => {
     try {
       setIsLoading(true);
       const response = await fetch(`https://api.freeapi.app/api/v1/todos?todoId=${editTodoId}`, {
-        method: 'PATCH',  //to apply partial updates to a resource. PUT method is used to update or replace resource entirely.
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -89,7 +111,7 @@ const TodoList = () => {
       updatedTodos[updatedTodoIndex] = { ...updatedTodos[updatedTodoIndex], title: editedTodoTitle, description: editedTodoDescription };
       setTodos(updatedTodos);
       message.success('Todo updated successfully');
-      setIsModalVisible(false); // Close the modal after updating todo
+      setIsModalVisible(false);
     } catch (error) {
       console.error('Error updating todo:', error);
       message.error('Failed to update todo');
@@ -117,6 +139,18 @@ const TodoList = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleEdit = (todo) => {
+    setEditTodoId(todo._id);
+    setEditedTodoTitle(todo.title);
+    setEditedTodoDescription(todo.description);
+    setIsModalVisible(true);
+  };
+
+  const handleDelete = (todo) => {
+    setTodoToDelete(todo);
+    setDeleteConfirmationVisible(true);
   };
 
   useEffect(() => {
@@ -164,40 +198,32 @@ const TodoList = () => {
         </Modal>
       )}
 
-      {Array.isArray(todos) && todos.length > 0 ? (
-        <List
-          dataSource={todos}
-          loading={isLoading}
-          renderItem={(todo) => (
-            <List.Item actions={[
-              <Button
-                key="edit"
-                onClick={() => {
-                  setEditTodoId(todo._id);
-                  setEditedTodoTitle(todo.title);
-                  setEditedTodoDescription(todo.description);
-                  setIsModalVisible(true);
-                }}
-              >
-                Edit
-              </Button>,
-              <Button
-                key="delete"
-                onClick={() => {
-                  setTodoToDelete(todo);
-                  setDeleteConfirmationVisible(true);
-                }}
-              >
-                Delete
-              </Button>,
-            ]}>
-              {todo.title} - {todo.description}
-            </List.Item>
-          )}
-        />
-      ) : (
-        <p>No todos available.</p>
-      )}
+      <Table
+        columns={columns}
+        dataSource={todos}
+        loading={isLoading}
+        pagination={pagination}
+        onChange={(pagination, filters, sorter) => {
+          setPagination(pagination);
+          if (sorter.field) {
+            const sortedData = todos.slice().sort((a, b) => {
+              const isAscend = sorter.order === 'ascend';
+              if (a[sorter.field] < b[sorter.field]) {
+                return isAscend ? -1 : 1;
+              }
+              if (a[sorter.field] > b[sorter.field]) {
+                return isAscend ? 1 : -1;
+              }
+              return 0;
+            });
+            setTodos(sortedData);
+          } else {
+            setSorting({ field: "title", order: "descend" });
+          }
+        }}
+        sortDirections={['ascend', 'descend']}
+      />
+
     </div>
   );
 };
