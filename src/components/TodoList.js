@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Button, message, Input, Modal, Table } from 'antd';
-
+import './TodoList.scss'; 
 const TodoList = () => {
   const [todos, setTodos] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [newTodoTitle, setNewTodoTitle] = useState('');
-  const [newTodoDescription, setNewTodoDescription] = useState('');
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [editTodoId, setEditTodoId] = useState('');
-  const [editedTodoTitle, setEditedTodoTitle] = useState('');
-  const [editedTodoDescription, setEditedTodoDescription] = useState('');
-  const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
-  const [todoToDelete, setTodoToDelete] = useState(null);
+  const [modalData, setModalData] = useState({
+    isVisible: false,
+    isEditing: false,
+    todo: {
+      id: '',
+      title: '', 
+      description: ''
+    }
+  });
+  const [deleteData, setDeleteData] = useState({
+    isVisible: false,
+    todo: null,
+  });
   const [pagination, setPagination] = useState({ current: 1, pageSize: 5 });
-  const [sorting, setSorting] = useState({ field: 'title', order: 'descend' });
+  const [ setSorting] = useState({ field: 'title', order: 'descend' });
 
   const columns = [
     {
@@ -58,6 +63,17 @@ const TodoList = () => {
     }
   };
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setModalData({
+      ...modalData,
+      todo: {
+        ...modalData.todo,
+        [name]: value
+      }
+    });
+  };
+
   const addTodo = async () => {
     try {
       setIsLoading(true);
@@ -67,8 +83,8 @@ const TodoList = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          description: newTodoDescription,
-          title: newTodoTitle,
+          description: modalData.todo.description,
+          title: modalData.todo.title,
         }),
       });
       if (!response.ok) {
@@ -79,9 +95,15 @@ const TodoList = () => {
       setTodos([...todos, responseJSON?.data]);
       message.success('Todo added successfully');
 
-      setNewTodoTitle('');
-      setNewTodoDescription('');
-      setIsModalVisible(false);
+      setModalData({
+        isVisible: false,
+        isEditing: false,
+        todo: {
+          id: '',
+          title: '',
+          description: ''
+        }
+      });
     } catch (error) {
       console.error('Error adding todo:', error);
       message.error('Failed to add todo');
@@ -93,25 +115,33 @@ const TodoList = () => {
   const updateTodo = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`https://api.freeapi.app/api/v1/todos?todoId=${editTodoId}`, {
+      const response = await fetch(`https://api.freeapi.app/api/v1/todos?todoId=${modalData.todo.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          description: editedTodoDescription,
-          title: editedTodoTitle,
+          description: modalData.todo.description,
+          title: modalData.todo.title,
         }),
       });
       if (!response.ok) {
         throw new Error(`Failed to update todo. Status: ${response.status}, ${response.statusText}`);
       }
-      const updatedTodoIndex = todos.findIndex(todo => todo._id === editTodoId);
+      const updatedTodoIndex = todos.findIndex(todo => todo._id === modalData.todo.id);
       const updatedTodos = [...todos];
-      updatedTodos[updatedTodoIndex] = { ...updatedTodos[updatedTodoIndex], title: editedTodoTitle, description: editedTodoDescription };
+      updatedTodos[updatedTodoIndex] = { ...updatedTodos[updatedTodoIndex], title: modalData.todo.title, description: modalData.todo.description };
       setTodos(updatedTodos);
       message.success('Todo updated successfully');
-      setIsModalVisible(false);
+      setModalData({
+        isVisible: false,
+        isEditing: false,
+        todo: {
+          id: '',
+          title: '',
+          description: ''
+        }
+      });
     } catch (error) {
       console.error('Error updating todo:', error);
       message.error('Failed to update todo');
@@ -123,16 +153,16 @@ const TodoList = () => {
   const deleteTodo = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`https://api.freeapi.app/api/v1/todos/${todoToDelete._id}`, {
+      const response = await fetch(`https://api.freeapi.app/api/v1/todos/${deleteData.todo._id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
         throw new Error(`Failed to delete todo. Status: ${response.status}, ${response.statusText}`);
       }
-      const filteredTodos = todos.filter(todo => todo._id !== todoToDelete._id);
+      const filteredTodos = todos.filter(todo => todo._id !== deleteData.todo._id);
       setTodos(filteredTodos);
       message.success('Todo deleted successfully');
-      setDeleteConfirmationVisible(false);
+      setDeleteData({ isVisible: false, todo: null });
     } catch (error) {
       console.error('Error deleting todo:', error);
       message.error('Failed to delete todo');
@@ -142,15 +172,19 @@ const TodoList = () => {
   };
 
   const handleEdit = (todo) => {
-    setEditTodoId(todo._id);
-    setEditedTodoTitle(todo.title);
-    setEditedTodoDescription(todo.description);
-    setIsModalVisible(true);
+    setModalData({
+      isVisible: true,
+      isEditing: true,
+      todo: {
+        id: todo._id,
+        title: todo.title,
+        description: todo.description
+      }
+    });
   };
 
   const handleDelete = (todo) => {
-    setTodoToDelete(todo);
-    setDeleteConfirmationVisible(true);
+    setDeleteData({ isVisible: true, todo });
   };
 
   useEffect(() => {
@@ -158,47 +192,49 @@ const TodoList = () => {
   }, []);
 
   return (
-    <div>
-      <h1>Todo List</h1>
-      <Button type="primary" onClick={() => setIsModalVisible(true)} loading={isLoading}>
-        Add Todo
-      </Button>
+    <div className="todo-list-container">
+      <h1 className="todo-list-header">Todo List</h1>
+      <div className="todo-list-actions">
+        <Button type="primary" onClick={() => setModalData({ isVisible: true, isEditing: false, todo: { id: '', title: '', description: '' } })} loading={isLoading}>
+          Add Todo
+        </Button>
+      </div>
 
       <Modal
-        title={editTodoId ? "Edit Todo" : "Add Todo"}
-        visible={isModalVisible}
-        onOk={editTodoId ? updateTodo : addTodo}
-        onCancel={() => {
-          setIsModalVisible(false);
-          setEditTodoId('');
-          setEditedTodoTitle('');
-          setEditedTodoDescription('');
-        }}
+        title={modalData.isEditing ? "Edit Todo" : "Add Todo"}
+        visible={modalData.isVisible}
+        onOk={modalData.isEditing ? updateTodo : addTodo}
+        onCancel={() => setModalData({ isVisible: false, isEditing: false, todo: { id: '', title: '', description: '' } })}
       >
         <Input
+          className="todo-form-input"
           placeholder="Enter todo title"
-          value={editTodoId ? editedTodoTitle : newTodoTitle}
-          onChange={(e) => editTodoId ? setEditedTodoTitle(e.target.value) : setNewTodoTitle(e.target.value)}
+          name="title"
+          value={modalData.todo.title}
+          onChange={handleInputChange}
         />
         <Input.TextArea
+          className="todo-form-input"
           placeholder="Enter todo description"
-          value={editTodoId ? editedTodoDescription : newTodoDescription}
-          onChange={(e) => editTodoId ? setEditedTodoDescription(e.target.value) : setNewTodoDescription(e.target.value)}
+          name="description"
+          value={modalData.todo.description}
+          onChange={handleInputChange}
         />
       </Modal>
 
-      {deleteConfirmationVisible && (
+      {deleteData.isVisible && (
         <Modal
           title="Delete Todo"
-          visible={deleteConfirmationVisible}
+          visible={deleteData.isVisible}
           onOk={deleteTodo}
-          onCancel={() => setDeleteConfirmationVisible(false)}
+          onCancel={() => setDeleteData({ isVisible: false, todo: null })}
         >
           <p>Are you sure you want to delete this todo?</p>
         </Modal>
       )}
 
       <Table
+        className="todo-list-table"
         columns={columns}
         dataSource={todos}
         loading={isLoading}
